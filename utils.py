@@ -16,11 +16,11 @@ def iter_layers(qc):
 
 
 DEVICE = "cuda:0"
-def to_backend(x):
+def to_backend_cuda(x):
     return torch.tensor(x, dtype=torch.complex64, device=DEVICE)
 
 # method: 'l2bp', 'local-early', 'local-late', 'projector', 'superorthogonal'
-def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=32, cutoff=0.1, equalize_norms=True):
+def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=32, cutoff=0.1, equalize_norms=True, to_backend=to_backend_cuda):
     N = layered_circuit[0].num_qubits
     L = len(layered_circuit)
     M = L // 2
@@ -79,7 +79,7 @@ def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=3
     return tno_core
 
 
-def tno_to_tne(tno, max_bond=8, cutoff=0.01):
+def tno_to_tne(tno, max_bond=8, cutoff=0.01, to_backend=to_backend_cuda):
     nq = len(tno.sites)
     tne = quimb_circuit(QuantumCircuit(nq), to_backend=to_backend).psi
 
@@ -113,7 +113,10 @@ def extract_bitstring(tne):
     pred_bs = ''
     p0s = []
     for ii in range(nq):
-        Pi0 = torch.tensor(np.array([[1., 0.],[0., 0.]]), device=DEVICE, dtype=torch.cfloat)
+        if tne[0].backend == 'numpy':
+            Pi0 = np.array([[1., 0.],[0., 0.]])
+        else:
+            Pi0 = torch.tensor(np.array([[1., 0.],[0., 0.]]), device=DEVICE, dtype=torch.cfloat)
         p0 = tne.local_expectation(Pi0, where=[ii], max_bond=2, optimize="auto", normalized=True).real.item()
         p0s.append(p0)
         pred_bs += '1' if p0 < 0.5 else '0'
