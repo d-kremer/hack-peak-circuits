@@ -36,6 +36,7 @@ def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=3
 
     # Start the TNO at the center of the circuit
     tno_core = quimb_circuit(layered_circuit[M].compose(qc_id), to_backend=to_backend).get_uni()
+    stats = []
 
     # Merge and contract chunks of layers to the left and right of the circuit
     for i in range(0, M+1, chunk_size):
@@ -73,10 +74,14 @@ def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=3
         shapes_flat = [s for t in tno_core for s in t.shape]
         shapes_count = [len(t.shape) for t in tno_core]
         elem_counts = [np.prod(t.shape).item() for t in tno_core]
-
+        stats.append({
+            "layer (distance from center)": i,
+            "max_bond": tno_core.max_bond(),
+            "total_elements": np.sum(shapes_flat).item()
+        })
         print(f"    (|{M-1-(i+j)}-{M-1-i}|-{M}-|{M+1+i}-{M+1+i+j}|)/({len(layered_circuit)}) -> max_bond = {tno_core.max_bond()}, max_links = {max(shapes_count)}, total_elems = {sum(elem_counts)}, total_shapes = {np.sum(shapes_flat).item()}")
 
-    return tno_core
+    return tno_core, stats
 
 
 def tno_to_tne(tno, max_bond=8, cutoff=0.01, to_backend=to_backend_cuda):
