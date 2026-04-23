@@ -1,5 +1,0 @@
-qiskit
-numpy
-quimb
-qiskit-quimb
-torch

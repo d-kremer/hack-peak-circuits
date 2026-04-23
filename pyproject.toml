@@ -1,0 +1,16 @@
+[project]
+name = "peaked-circuit-simulation"
+version = "0.1.0"
+description = "Classical simulation of peaked quantum circuits"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "qiskit",
+    "numpy",
+    "quimb",
+    "qiskit-quimb",
+    "torch",
+    "pandas",
+    "matplotlib",
+    "jupyter",
+]

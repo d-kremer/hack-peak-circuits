@@ -10,14 +10,79 @@ import torch
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 
 
+# ------------------------------------------------------------------
+#  Circuit layering
+# ------------------------------------------------------------------
+
 def iter_layers(qc):
     for layer in circuit_to_dag(qc).layers():
         yield dag_to_circuit(layer['graph'])
 
+def merge_layers(ls, barrier=False):
+    ls = iter(ls)
+    qc = next(ls)
+    for l in ls:
+        if barrier:
+            qc.barrier()
+        qc = qc.compose(l)
+    return qc
+
+def merge_gates(gates, num_qubits=None):
+    if num_qubits is None:
+        num_qubits = gates[0].qubits[0]._register.size
+    qc = QuantumCircuit(num_qubits, num_qubits)
+    for g in gates:
+        qc.append(g.operation, qargs=[q._index for q in g.qubits], cargs=[q._index for q in g.clbits])
+    return qc
+
+# ------------------------------------------------------------------
+#  Backends
+# ------------------------------------------------------------------
 
 DEVICE = "cuda:0"
-def to_backend_cuda(x):
-    return torch.tensor(x, dtype=torch.complex64, device=DEVICE)
+def to_backend_cuda(x, device=DEVICE):
+    return torch.tensor(x, dtype=torch.complex128, device=device)
+
+
+# ------------------------------------------------------------------
+#  TN info
+# ------------------------------------------------------------------
+
+def elem_counts(tno):
+    return sum(np.prod(t.shape).item() for t in tno)
+
+def get_tn_info(tno):
+    shapes_flat = [s for t in tno for s in t.shape]
+    shapes_count = [len(t.shape) for t in tno]
+    elem_counts = [np.prod(t.shape).item() for t in tno]
+
+    return {
+        "max_bond": tno.max_bond(),
+        "max_links": max(shapes_count),
+        "total_elems": sum(elem_counts),
+        "total_shapes": np.sum(shapes_flat).item(),
+        "total_links": sum(shapes_count),
+        "num_tensors": tno.num_tensors,
+    }
+
+def get_bond_sizes(tno):
+    N = len(tno.sites)
+    elem_counts = [np.prod(t.shape).item() for t in tno]
+    pair_bond_dims = dict()
+    for ii in range(N):
+        for jj in range(ii+1, N):
+            try:
+                pair_bond_dims[(ii,jj)] = tno.bond_size(ii,jj)
+            except:
+                continue
+
+    pair_bond_weight = {(ii, jj):elem_counts[ii] + elem_counts[jj] for ii, jj in pair_bond_dims.keys()}
+    return sorted(pair_bond_weight.items(), key=lambda rw: -rw[-1])
+
+
+# ------------------------------------------------------------------
+#  TN Methods
+# ------------------------------------------------------------------
 
 # method: 'l2bp', 'local-early', 'local-late', 'projector', 'superorthogonal'
 def contract_core(layered_circuit, chunk_size=4, method='local-late', max_bond=32, cutoff=0.1, equalize_norms=True, to_backend=to_backend_cuda):
@@ -127,3 +192,29 @@ def extract_bitstring(tne):
         pred_bs += '1' if p0 < 0.5 else '0'
         #print(f"({ii}) -> {p0:.3f} | {pred_bs}")
     return pred_bs, p0s
+
+
+def bitstring_probability(psi, bitstring, optimize="auto-hq"):
+    tn = psi.isel(
+        {psi.site_ind(i): int(b) for i, b in zip(psi.sites, bitstring)}
+    )
+    amp = tn.contract(all, optimize=optimize)
+    return abs(amp)**2
+
+
+def sample_tns(psi, num_samples, max_distance=0, optimize="auto-hq"):
+    rng = np.random.default_rng()
+    samples = []
+    for _ in range(num_samples):
+        config, _ = psi.sample_configuration_cluster(
+            gauges={}, 
+            max_distance=max_distance, 
+            seed=rng,
+            optimize=optimize,
+        )
+        try:
+            sites = psi.sites
+        except AttributeError:
+            sites = sorted(config)
+        samples.append("".join(str(config[s]) for s in sites))
+    return samples
