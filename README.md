@@ -47,8 +47,16 @@ Splits the circuit at the midpoint and transpiles it to linear connectivity. The
 
 If you use this code, please cite:
 
-```
-TODO: Add citation
+```bibtex
+@article{kremer2026peaked,
+    title   = {Efficient Classical Simulation of Heuristic Peaked Quantum Circuits},
+    author  = {Kremer, David and Dupuis, Nicolas},
+    year    = {2026},
+    eprint  = {2604.21908},
+    archivePrefix = {arXiv},
+    primaryClass  = {quant-ph},
+    url     = {https://arxiv.org/abs/2604.21908}
+}
 ```
 
 ## License
